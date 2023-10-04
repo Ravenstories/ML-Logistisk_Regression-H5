@@ -10,7 +10,7 @@ namespace ML_Logistisk_Regression_H5.ML.Base
         private static Regex _stringRex;
         protected BaseML()
         {
-            mlContext = new MLContext(2);
+            mlContext = new MLContext(1200);
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             _stringRex = new Regex(@"[ -~\t]{8,}", RegexOptions.Compiled);
         }

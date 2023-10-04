@@ -16,6 +16,7 @@ namespace ML_Logistisk_Regression_H5.ML
             }
 
             var trainingDataView = mlContext.Data.LoadFromTextFile<FileInput>(trainingFileName, ',');
+            var dataSplit = mlContext.Data.TrainTestSplit(trainingDataView, testFraction: 0.3);
 
             var dataProcessPipeline = mlContext.Transforms.CopyColumns("Label", nameof(FileInput.Label))
                 .Append(mlContext.Transforms.Text.FeaturizeText("NGrams",nameof(FileInput.Strings)))
@@ -26,60 +27,21 @@ namespace ML_Logistisk_Regression_H5.ML
             
             var trainingPipeline = dataProcessPipeline.Append(trainer);
 
-            var trainedModel = trainingPipeline.Fit(trainingDataView);
+            ITransformer trainedModel = trainingPipeline.Fit(dataSplit.TrainSet);
 
-            mlContext.Model.Save(trainedModel, trainingDataView.Schema, Constants.modelFile);
+            mlContext.Model.Save(trainedModel, dataSplit.TrainSet.Schema, Constants.modelFile);
+            
+            var testSetTransform = trainedModel.Transform(dataSplit.TestSet);
 
-            var testSetTransform = trainedModel.Transform(trainingDataView);
+            var modelMetrics = mlContext.BinaryClassification.Evaluate(testSetTransform);
 
-            var modelMetrics = mlContext.Regression.Evaluate(testSetTransform);
-
-            Console.WriteLine($"Loss Function: {modelMetrics.LossFunction:0.##}{Environment.NewLine}" +
-                $"Mean Absolute Error: {modelMetrics.MeanAbsoluteError:#.##}{Environment.NewLine}" +
-                $"Mean Squared Error: {modelMetrics.MeanSquaredError:#.##}{Environment.NewLine}" +
-                $"RSquared: {modelMetrics.RSquared:0.##}{Environment.NewLine}" +
-                $"Root Mean Squared Error: {modelMetrics.RootMeanSquaredError:#.##}");
-        }
-        public void Trains(string trainingFileName)
-        {
-            if (!File.Exists(trainingFileName))
-            {
-                Console.WriteLine($"Failed to find training data file {trainingFileName}");
-                return;
-            }
-
-            var trainingDataView = mlContext.Data.LoadFromTextFile<EmploymentHistory>(trainingFileName, ',');
-
-            var dataProcessPipeline = mlContext.Transforms.CopyColumns("Label", nameof(EmploymentHistory.durationInMonths))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.isMarried)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.bsDegree)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.msDegree)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.yearsExperience)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.ageAtHire)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.hasKids)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.withinMonthOfVesting)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.deskDecorations)))
-                .Append(mlContext.Transforms.NormalizeMeanVariance(nameof(EmploymentHistory.longCommute)))
-                .Append(mlContext.Transforms.Concatenate("Features",
-                    typeof(EmploymentHistory).ToPropertyList<EmploymentHistory>(nameof(EmploymentHistory.durationInMonths))));
-
-
-            var trainer = mlContext.Regression.Trainers.Sdca(labelColumnName: "Label", featureColumnName: "Features");
-
-            var trainingPipeline = dataProcessPipeline.Append(trainer);
-            var trainedModel = trainingPipeline.Fit(trainingDataView);
-
-            mlContext.Model.Save(trainedModel, trainingDataView.Schema, Constants.modelFile);
-
-            var testSetTransform = trainedModel.Transform(trainingDataView);
-
-            var modelMetrics = mlContext.Regression.Evaluate(testSetTransform);
-
-            Console.WriteLine($"Loss Function: {modelMetrics.LossFunction:0.##}{Environment.NewLine}" +
-                $"Mean Absolute Error: {modelMetrics.MeanAbsoluteError:#.##}{Environment.NewLine}" +
-                $"Mean Squared Error: {modelMetrics.MeanSquaredError:#.##}{Environment.NewLine}" +
-                $"RSquared: {modelMetrics.RSquared:0.##}{Environment.NewLine}" +
-                $"Root Mean Squared Error: {modelMetrics.RootMeanSquaredError:#.##}");
+            Console.WriteLine($"Loss Function: {modelMetrics.LogLoss:0.##}{Environment.NewLine}");
+            Console.WriteLine($"Accuracy: {modelMetrics.Accuracy:P2}{Environment.NewLine}");
+            Console.WriteLine($"Area Under Curve: {modelMetrics.AreaUnderRocCurve:P2}{Environment.NewLine}");
+            Console.WriteLine($"Area Under Precision Recall Curve: {modelMetrics.AreaUnderPrecisionRecallCurve:P2}{Environment.NewLine}");
+            Console.WriteLine($"F1Score: {modelMetrics.F1Score:P2}{Environment.NewLine}");
+            Console.WriteLine($"Positive Recall: {modelMetrics.PositiveRecall:0.##}{Environment.NewLine}");
         }
     }
 }
+
